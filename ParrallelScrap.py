@@ -18,7 +18,10 @@ def inititate_driver():
     chrome_options.add_argument("--window-size=1920x1080")
     chrome_options.add_argument('log-level=3')
 
-    chrome_driver = os.getcwd() + "\\chromedriver.exe"
+    if os.name == 'nt':
+        chrome_driver = os.getcwd() + "\\chromedriver.exe"
+    else:
+        chrome_driver = os.getcwd() + "/chromedriver"
 
 
     driver = webdriver.Chrome(chrome_options=chrome_options,
