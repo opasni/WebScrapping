@@ -23,7 +23,6 @@ def inititate_driver():
     else:
         chrome_driver = os.getcwd() + "/chromedriver"
 
-
     driver = webdriver.Chrome(chrome_options=chrome_options,
                             executable_path=chrome_driver)
     
@@ -135,7 +134,8 @@ if __name__ == '__main__':
     # Capture the screen to make sure all is ok
     driver.get_screenshot_as_file("capture.png")
     load_page_time = time.time()
-    print(f'Page sucessfully loaded! Time to load: {load_page_time - start_time:.2f}s\n')
+    # print(f'Page sucessfully loaded! Time to load: {load_page_time - start_time:.2f}s\n')
+    print("Page sucessfully loaded! Time to load:", {load_page_time - start_time}, 's\n')
     # We can also store the source code of the page
     # driver.page_source
 
@@ -175,8 +175,7 @@ if __name__ == '__main__':
                 all_info = all_info + list(results)
 
                 page_end_time = time.time()
-                print(
-                    f'Time needed for parsing subpages: {page_end_time - page_start_time:.2f}s')
+                print("Time needed for parsing subpages:", {page_end_time - page_start_time}, 's')
                 # all_info.append(list(results))
                 # print(list(results))
       
@@ -192,7 +191,7 @@ if __name__ == '__main__':
               encoding='latin-1', index_label=False, index=False)
 
     end_time = time.time()
-    print(f'Total time: {end_time - load_page_time:.2f}s\n')
+    print('Total time:', {end_time - load_page_time}, 's\n')
 
 
 
