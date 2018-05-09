@@ -3,8 +3,6 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import Select
 from bs4 import BeautifulSoup
 
-import DataClean
-
 import os
 import time
 import concurrent.futures
@@ -28,7 +26,24 @@ def inititate_driver():
     
     return driver
 
-def get_the_search_page(choose):
+
+def get_details(list_of_districts_names, regierungsbezirk):
+
+    landkreis_codes = pd.read_excel('LandKreisKode.xlsx')
+
+    list_of_districts = landkreis_codes[landkreis_codes['Landkreis'].isin(
+        list_of_districts_names)]['Landkreis code']
+    list_of_districts = list(list_of_districts.values)
+
+    regierungsbezirk_code = landkreis_codes[landkreis_codes['Regierungsbezirk'].isin([
+        regierungsbezirk])]['Regierungsbezirk code']
+
+    regierungsbezirk_code = '0' + str(regierungsbezirk_code.values[0])
+
+    return (list_of_districts, regierungsbezirk_code)
+
+
+def get_the_search_page(list_of_districts, regierungsbezirk_code):
     driver.get("https://www.bayern-international.de/en/company-database/")
 
     # foldable_header = driver.find_element_by_class_name(name="foldable header")
@@ -38,7 +53,7 @@ def get_the_search_page(choose):
 
     select = Select(driver.find_element_by_name(
         name="tx_keytechrenew_keytech[state_province]"))
-    select.select_by_value('091')
+    select.select_by_value(regierungsbezirk_code)
 
     time.sleep(5)
 
@@ -46,7 +61,7 @@ def get_the_search_page(choose):
         "a.form-district-select-none")
     select_none.click()
 
-    picked_districts = [list_of_districts[i] for i in choose]
+    picked_districts = list_of_districts
     #Do not pick too many districts, otherwise it returns too many results (limited to 6000)
     for item in picked_districts:
         select_district = driver.find_element_by_id(item)
@@ -77,8 +92,6 @@ def pars_result_page(link):
 stand = 'https://www.bayern-international.de/en/company-database/company-details/'
 list_of_div = ["//*[@id='content']/div/article/ul[2]/li[1]/div/dl[1]",
                "//*[@id='content']/div/article/ul[2]/li[1]/div/dl[2]", "//*[@id='content']/div/article/ul[2]/li[1]/dl[1]"]
-list_of_districts = ["form_district_09171", "form_district_09173", "form_district_09172", "form_district_09174", "form_district_09175", "form_district_09176", "form_district_09177", "form_district_09178", "form_district_09179", "form_district_09180", "form_district_09161",
-                     "form_district_09181", "form_district_09182", "form_district_09183", "form_district_09184", "form_district_09162", "form_district_09185", "form_district_09186", "form_district_09187", "form_district_09163", "form_district_09188", "form_district_09189", "form_district_09190"]
 
 
 def page_pars(link_to_page):
@@ -108,7 +121,7 @@ def page_pars(link_to_page):
     for i, item in enumerate(list_of_labels):
         d[item] = list_of_definitions[i]
     
-    time_to_wati = max(0, 1 + np.random.normal(0, 1))
+    time_to_wati = max(0, 0.2 + np.random.normal(0, 1))
     # file.write("\n" + str(time_to_wati))
     # print("\n" + str(time_to_wati))
     time.sleep(time_to_wati)
@@ -122,22 +135,39 @@ start_time = time.time()
 # Initiate the main driver
 driver = inititate_driver()
 
-# Initiate another driver for page parsing
-# driver_page = inititate_driver()
-
-
 if __name__ == '__main__':
 
-    # Execute the specyfic search. If we want to get all the results should make an iteration from here on!
-    get_the_search_page([1])
 
+
+    # The Important Stuff!!! Change to what needed!
+
+    # regierungsbezirk = 'Swabia' 'Oberpfalz' 'Niederbayern' 'Oberbayern' 'Mittelfranken'
+    regierungsbezirk = 'Oberpfalz'
+    # regierungsbezirk_eng = 'Swabia' 'Upper Palatinate' 'Lower Bavaria' 'Middle Franconia'
+    regierungsbezirk_eng = 'Upper Palatinate'
+
+    # list_of_districts_names = ['Augsburg', 'Augsburg, Town', 'Aichach-Friedberg']
+    # list_of_districts_names = ['Kelheim'] ['Landshut', 'Landshut, Town']
+    list_of_districts_names = ['Regensburg', 'Regensburg, Town']
+
+
+    list_of_districts, regierungsbezirk_code = get_details(
+        list_of_districts_names, regierungsbezirk)
+
+
+
+    # Execute the specyfic search. If we want to get all the results should make an iteration from here on!
+    get_the_search_page(list_of_districts, regierungsbezirk_code)
     # Capture the screen to make sure all is ok
     driver.get_screenshot_as_file("capture.png")
+
     load_page_time = time.time()
-    # print(f'Page sucessfully loaded! Time to load: {load_page_time - start_time:.2f}s\n')
     print("Page sucessfully loaded! Time to load:", {load_page_time - start_time}, 's\n')
     # We can also store the source code of the page
     # driver.page_source
+
+
+
 
     # Get the number of pages and total amount of results we need to process
     n_of_pages = int(driver.find_element_by_xpath(
@@ -148,11 +178,9 @@ if __name__ == '__main__':
 
     try: list_of_links
     except NameError: list_of_links = []
-        # print("Not exists yet. Defining now!")
-        # list_of_links = []
-    # else: print("Already exists!")
 
-    n_of_pages = 4
+
+    # n_of_pages = 4
     all_info = []
 
     with concurrent.futures.ProcessPoolExecutor() as executors:
@@ -176,22 +204,41 @@ if __name__ == '__main__':
 
                 page_end_time = time.time()
                 print("Time needed for parsing subpages:", {page_end_time - page_start_time}, 's')
-                # all_info.append(list(results))
-                # print(list(results))
       
     # Define DATAFRAME and add the links to sites
     df = pd.DataFrame(all_info)
     df["Bayer Internatinal Links"] = list_of_links
-    df = DataClean.DataClean(df)
-    cols = df.columns.tolist()
-    order_list = [0, 9, 7, 2, 8, 4, 3, 5, 6, 1, 10]
-    cols = [cols[i] for i in order_list]
-    df = df[cols]
-    df.to_csv('Upper_Bavaria_info.csv', sep=';',
-              encoding='latin-1', index_label=False, index=False)
+
+    file_name = regierungsbezirk + '_info.csv'
+
+    df.to_csv(file_name, sep=';',
+              encoding='utf-8', index_label=False, index=False)
 
     end_time = time.time()
     print('Total time:', {end_time - load_page_time}, 's\n')
 
 
+    # We try to produce the final data
 
+    from DataClean import DataClean
+    try:
+        dataF = pd.DataFrame([DataClean(row, regierungsbezirk, regierungsbezirk_eng)
+                            for index, row in df.iterrows()])
+
+        # dataF = DataClean(df)
+
+        # Remove the Gigatronic and MBtech
+        dataF = dataF.drop(dataF[(dataF['Email Address'] == 'info@mbtech-group.com')
+                                | (dataF['Email Address'] == 'info-ing@gigatronik.com')].index)
+
+        # Create a list where we remove all the companies without e-mails or other requrements
+        dataF_with_email = dataF[dataF['Email Address']
+                                != 'not available']  # .reset_index(drop=True)
+
+        fin_file_name = regierungsbezirk + '_cleaned.csv'
+        # Seving the data in tab delimited format (readable by mailchunk)
+        dataF_with_email.to_csv(fin_file_name, sep='\t',
+                                encoding='utf-8', index_label=False, index=False)
+
+    except:
+        print("There was an error while cleaning the data!")
