@@ -182,7 +182,7 @@ if __name__ == '__main__':
 
         list_of_links = []
 
-        n_of_pages = 1
+        # n_of_pages = 1
         all_info = []
 
         with concurrent.futures.ProcessPoolExecutor() as executors:
