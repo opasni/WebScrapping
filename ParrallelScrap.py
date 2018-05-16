@@ -27,20 +27,29 @@ def inititate_driver():
     return driver
 
 
-def get_details(list_of_districts_names, regierungsbezirk):
+def get_details():
 
     landkreis_codes = pd.read_excel('LandKreisKode.xlsx')
 
-    list_of_districts = landkreis_codes[landkreis_codes['Landkreis'].isin(
-        list_of_districts_names)]['Landkreis code']
-    list_of_districts = list(list_of_districts.values)
+    part_dataf = landkreis_codes[landkreis_codes['Status'] == -1]
 
-    regierungsbezirk_code = landkreis_codes[landkreis_codes['Regierungsbezirk'].isin([
-        regierungsbezirk])]['Regierungsbezirk code']
+    reg_names = ['Regierungsbezirk',
+                 'regierungsbezirk_eng', 
+                 'regierungsbezirk_kurz', 
+                 'Regierungsbezirk code']
 
-    regierungsbezirk_code = '0' + str(regierungsbezirk_code.values[0])
+    regbez, regbez_eng, regbez_kurz, regbez_code = [
+        list(set(part_dataf[it])) for it in reg_names]
 
-    return (list_of_districts, regierungsbezirk_code)
+    regbez_code = ['0' + str(num) for num in regbez_code]
+
+
+    landkreis = [list(part_dataf[part_dataf['Regierungsbezirk']
+                                    == reg]['Landkreis']) for reg in regbez]
+    landkreis_code = [list(part_dataf[part_dataf['Regierungsbezirk']
+                                        == reg]['Landkreis code']) for reg in regbez]
+
+    return (regbez, regbez_eng, regbez_kurz, regbez_code, landkreis, landkreis_code)
 
 
 def get_the_search_page(list_of_districts, regierungsbezirk_code):
@@ -55,11 +64,13 @@ def get_the_search_page(list_of_districts, regierungsbezirk_code):
         name="tx_keytechrenew_keytech[state_province]"))
     select.select_by_value(regierungsbezirk_code)
 
-    time.sleep(5)
+    time.sleep(8)
 
     select_none = driver.find_element_by_css_selector(
         "a.form-district-select-none")
     select_none.click()
+
+    driver.get_screenshot_as_file("test.png")
 
     picked_districts = list_of_districts
     #Do not pick too many districts, otherwise it returns too many results (limited to 6000)
@@ -104,7 +115,6 @@ def page_pars(link_to_page):
     # with open('progress_log.txt', 'a') as file:
     # file.write("\nSite number: " + str(page_num))
     # file.write("\nSite name: " + str(url))
-    # print("\nSite name: " + str(url))
     # try:
     for path in list_of_div:
         label = driver.find_element_by_xpath(path)
@@ -138,91 +148,83 @@ driver = inititate_driver()
 if __name__ == '__main__':
 
 
-
     # The Important Stuff!!! Change to what needed!
+    regbez, regbez_eng, regbez_kurz, regbez_code, landkreis, landkreis_code = get_details()
 
-    # regierungsbezirk = 'Swabia' 'Oberpfalz' 'Niederbayern' 'Oberbayern' 'Mittelfranken'
-    regierungsbezirk = 'Oberpfalz'
-    # regierungsbezirk_eng = 'Swabia' 'Upper Palatinate' 'Lower Bavaria' 'Middle Franconia'
-    regierungsbezirk_eng = 'Upper Palatinate'
+    print("Scrapping {} regoins, which are:" .format(len(regbez)), regbez)
 
-    # list_of_districts_names = ['Augsburg', 'Augsburg, Town', 'Aichach-Friedberg']
-    # list_of_districts_names = ['Kelheim'] ['Landshut', 'Landshut, Town']
-    list_of_districts_names = ['Regensburg', 'Regensburg, Town']
+    for reg in range(len(regbez)):
 
+        print("Started with {} districts, which are:" .format(
+            len(landkreis[reg])), landkreis[reg])
 
-    list_of_districts, regierungsbezirk_code = get_details(
-        list_of_districts_names, regierungsbezirk)
+        print("The codes for the districts are:", landkreis_code[reg])
 
+        # Execute the specyfic search. If we want to get all the results should make an iteration from here on!
+        get_the_search_page(landkreis_code[reg], regbez_code[reg])
+        # Capture the screen to make sure all is ok
+        driver.get_screenshot_as_file("capture.png")
 
-
-    # Execute the specyfic search. If we want to get all the results should make an iteration from here on!
-    get_the_search_page(list_of_districts, regierungsbezirk_code)
-    # Capture the screen to make sure all is ok
-    driver.get_screenshot_as_file("capture.png")
-
-    load_page_time = time.time()
-    print("Page sucessfully loaded! Time to load:", {load_page_time - start_time}, 's\n')
-    # We can also store the source code of the page
-    # driver.page_source
+        load_page_time = time.time()
+        print("Page sucessfully loaded! Time to load:", {load_page_time - start_time}, 's\n')
+    
 
 
+        # Get the number of pages and total amount of results we need to process
+        n_of_pages = int(driver.find_element_by_xpath(
+            "//*[@id='keytech_list_result']/div[1]/nav/ul/li[5]/a").text)
+        n_of_resutls = (driver.find_element_by_xpath("//*[@id = 'keytech_list_result']/p/strong").text)
+        print("There are:", n_of_pages, "pages")
+        print("Total number of results is:", n_of_resutls)
+
+        # try: list_of_links
+        # except NameError: list_of_links = []
+
+        list_of_links = []
+
+        n_of_pages = 1
+        all_info = []
+
+        with concurrent.futures.ProcessPoolExecutor() as executors:
+
+            # Get only the links that we need
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+
+                # Let's start parsing the pages
+                for i in range(n_of_pages):
+                    a_tags = load_result_page(i)
+
+                    links_result = executor.map(pars_result_page, a_tags)
+                    links_result = list(filter(None, links_result))
+
+                    list_of_links = list_of_links + links_result
+                    print('\n', "Started parsing page:", i + 1)
+                    page_start_time = time.time()
+
+                    results = executors.map(page_pars, enumerate(links_result))
+                    all_info = all_info + list(results)
+
+                    page_end_time = time.time()
+                    print("Time needed for parsing subpages:", {page_end_time - page_start_time}, 's')
+        
+        # Define DATAFRAME and add the links to sites
+        df = pd.DataFrame(all_info)
+        df["Bayer Internatinal Links"] = list_of_links
+
+        file_name = regbez[reg] + '_info.csv'
+
+        df.to_csv(file_name, sep=';',
+                encoding='utf-8', index_label=False, index=False)
+
+        end_time = time.time()
+        print('Total time:', {end_time - load_page_time}, 's\n')
 
 
-    # Get the number of pages and total amount of results we need to process
-    n_of_pages = int(driver.find_element_by_xpath(
-        "//*[@id='keytech_list_result']/div[1]/nav/ul/li[5]/a").text)
-    n_of_resutls = (driver.find_element_by_xpath("//*[@id = 'keytech_list_result']/p/strong").text)
-    print("There are:", n_of_pages, "pages")
-    print("Total number of results is:", n_of_resutls)
+        # We try to produce the final data
 
-    try: list_of_links
-    except NameError: list_of_links = []
-
-
-    # n_of_pages = 4
-    all_info = []
-
-    with concurrent.futures.ProcessPoolExecutor() as executors:
-
-        # Get only the links that we need
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-
-            # Let's start parsing the pages
-            for i in range(n_of_pages):
-                a_tags = load_result_page(i)
-
-                links_result = executor.map(pars_result_page, a_tags)
-                links_result = list(filter(None, links_result))
-
-                list_of_links = list_of_links + links_result
-                print('\n', "Started parsing page:", i + 1)
-                page_start_time = time.time()
-
-                results = executors.map(page_pars, enumerate(links_result))
-                all_info = all_info + list(results)
-
-                page_end_time = time.time()
-                print("Time needed for parsing subpages:", {page_end_time - page_start_time}, 's')
-      
-    # Define DATAFRAME and add the links to sites
-    df = pd.DataFrame(all_info)
-    df["Bayer Internatinal Links"] = list_of_links
-
-    file_name = regierungsbezirk + '_info.csv'
-
-    df.to_csv(file_name, sep=';',
-              encoding='utf-8', index_label=False, index=False)
-
-    end_time = time.time()
-    print('Total time:', {end_time - load_page_time}, 's\n')
-
-
-    # We try to produce the final data
-
-    from DataClean import DataClean
-    try:
-        dataF = pd.DataFrame([DataClean(row, regierungsbezirk, regierungsbezirk_eng)
+        from DataClean import DataClean
+        # try:
+        dataF = pd.DataFrame([DataClean(row, regbez[reg], regbez_eng[reg])
                             for index, row in df.iterrows()])
 
         # dataF = DataClean(df)
@@ -235,10 +237,22 @@ if __name__ == '__main__':
         dataF_with_email = dataF[dataF['Email Address']
                                 != 'not available']  # .reset_index(drop=True)
 
-        fin_file_name = regierungsbezirk + '_cleaned.csv'
+        fin_file_name = regbez[reg] + '_cleaned.csv'
         # Seving the data in tab delimited format (readable by mailchunk)
         dataF_with_email.to_csv(fin_file_name, sep='\t',
                                 encoding='utf-8', index_label=False, index=False)
 
-    except:
-        print("There was an error while cleaning the data!")
+        # Let's make the separated lists
+        all_landkreis_name = [item.replace(' ', '_').replace(',', '_').replace(
+            '.', '_').replace('__', '_') for item in landkreis[reg]]
+        for j in range(len(landkreis[reg])):
+            filename = './/' + regbez[reg] + '/' + regbez_kurz[reg] + '_' + all_landkreis_name[j] + '.csv'
+            print(filename)
+            dataF_with_email[dataF_with_email['Landkreis'] == landkreis[reg][j]].to_csv(
+                filename, sep='\t', encoding='utf-8', index_label=False, index=False)
+
+        # except:
+        #     print("There was an error while cleaning the data!")
+
+        del df
+

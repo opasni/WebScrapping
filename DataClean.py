@@ -187,6 +187,8 @@ def number_clean(number):
             clean = ('+49 ' + clean[1:]).replace('  ', ' ')
     elif clean[:1] != '+':
         clean = clean.replace(clean[:1], '')
+        if clean[0] != '+':
+            clean = '+' + clean
     if clean[:2] == '+0':
         clean = ('+49 ' + clean[2:])
     return clean
@@ -194,12 +196,12 @@ def number_clean(number):
 
 def format_number(number):
     value = number.replace(' ', '').replace('+49', '+49 ').replace('+43', '+43 ').replace(
-        '+48', '+48 ').replace('+86', '+86 ').replace('+7', '+7 ').replace('+0', '+49 ')
+        '+48', '+48 ').replace('+41', '+41 ').replace('+86', '+86 ').replace('+7', '+7 ').replace('+0', '+49 ')
     parts = value.split(' ')
-#     try:
-    value = parts[0] + ' ' + parts[1][:4] + ' ' + parts[1][4:]
-#     except:
-#         print(parts)
+    try:
+        value = parts[0] + ' ' + parts[1][:4] + ' ' + parts[1][4:]
+    except:
+        print(parts)
     return value
 
 
